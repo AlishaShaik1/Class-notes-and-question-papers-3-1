@@ -17,12 +17,13 @@ connectDB();
 
 const app = express();
 
-// CORS — allow localhost dev + production Vercel frontend + optional env override
+// CORS — allow localhost dev + production Vercel frontend + optional env override + any vercel.app domain
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
     'https://pec-class-notes-and-questions-2-2.vercel.app', // production frontend (2-2)
     'https://pec-class-notes-and-questions-3-1.vercel.app', // production frontend (3-1)
+    'https://class-notes-and-question-papers-3-1.vercel.app', // matching repo name
     process.env.FRONTEND_URL, // optional extra origin via env var
 ].filter(Boolean);
 
@@ -30,7 +31,10 @@ app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, Postman, curl)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Allow explicit origins or any Vercel domain (*.vercel.app)
+        if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+            return callback(null, true);
+        }
         // Log blocked origins to help debug future issues
         console.warn(`CORS blocked origin: ${origin}`);
         callback(new Error(`CORS: origin ${origin} not allowed`));

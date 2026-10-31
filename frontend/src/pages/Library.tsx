@@ -6,6 +6,33 @@ import { motion } from 'framer-motion';
 import NoteCard from '../components/notes/NoteCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// ── Numeric sort helpers ────────────────────────────────────────────────────
+/** Roman numeral → integer map for unit/chapter names. */
+const ROMAN_MAP: Record<string, number> = {
+    I: 1, II: 2, III: 3, IV: 4, V: 5,
+    VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+};
+
+/**
+ * Extract the primary sequence number from a note title.
+ * 1. Last Arabic digit group  → "IRS ASSIGNMENT -3" = 3
+ * 2. Last Roman numeral word  → "OS Unit-IV" = 4, "OS Unit-V" = 5
+ * 3. Fallback = Infinity (sorted last)
+ */
+const extractTitleNumber = (title: string): number => {
+    const arabicMatches = title.match(/\d+/g);
+    if (arabicMatches && arabicMatches.length > 0) {
+        return parseInt(arabicMatches[arabicMatches.length - 1], 10);
+    }
+    const words = title.toUpperCase().replace(/[-_]/g, ' ').split(/\s+/);
+    let lastRoman = Infinity;
+    for (const word of words) {
+        if (ROMAN_MAP[word] !== undefined) lastRoman = ROMAN_MAP[word];
+    }
+    return lastRoman;
+};
+
+
 
 interface Note {
     _id: string;
@@ -23,6 +50,7 @@ interface Note {
 // Department display names
 const DEPT_NAMES: Record<string, string> = {
     aiml: 'AIML',
+    ai: 'AI',
     cse: 'CSE',
     ds: 'DS',
 };
@@ -41,9 +69,10 @@ const Library: React.FC = () => {
 
     // Department-specific subjects
     const SUBJECTS_MAP: Record<string, string[]> = {
-        AIML: ['M4', 'DLCO', 'ML', 'DBMS', 'OT'],
-        CSE:  ['M4', 'MEFA', 'OS', 'DBMS', 'SE'],
-        DS:   ['SMDS', 'COA', 'DE', 'DBMS', 'OT'],
+        AIML: ['IRS', 'CN', 'OS'],
+        AI:   ['DL', 'CN', 'OS'],
+        CSE:  ['DWDM', 'CN', 'FLA'],
+        DS:   ['ML', 'CN', 'SE'],
     };
     const SUBJECTS = SUBJECTS_MAP[deptName] || SUBJECTS_MAP['AIML'];
 
@@ -90,7 +119,7 @@ const Library: React.FC = () => {
             notes = notes.filter(note =>
                 note.title.toLowerCase().includes(query) ||
                 note.subject.toLowerCase().includes(query) ||
-                note.uploaderName.toLowerCase().includes(query) ||
+                (note.uploaderName || '').toLowerCase().includes(query) ||
                 (note.chapter && String(note.chapter).includes(query))
             );
         }
@@ -99,12 +128,10 @@ const Library: React.FC = () => {
             notes = notes.filter(note => note.subject === selectedSubject);
         }
 
-        if (filterType === 'Notes') {
-            return notes.sort((a, b) => (a.chapter || 0) - (b.chapter || 0));
-        }
-        return notes.sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        // Numeric sort by number/Roman numeral extracted from title (ascending).
+        // Works for Arabic numbers ("Unit 3", "Assignment -3") and
+        // Roman numerals ("Unit-III", "Unit IV", "Unit V").
+        return notes.sort((a, b) => extractTitleNumber(a.title) - extractTitleNumber(b.title));
     }, [allNotes, searchTerm, filterType, selectedSubject]);
 
     if (loading)

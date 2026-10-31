@@ -6,6 +6,12 @@ import connectDB from './config/db.js';
 import noteRoutes from './routes/noteRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 connectDB();
 
@@ -15,7 +21,8 @@ const app = express();
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
-    'https://pec-class-notes-and-questions-2-2.vercel.app', // production frontend
+    'https://pec-class-notes-and-questions-2-2.vercel.app', // production frontend (2-2)
+    'https://pec-class-notes-and-questions-3-1.vercel.app', // production frontend (3-1)
     process.env.FRONTEND_URL, // optional extra origin via env var
 ].filter(Boolean);
 

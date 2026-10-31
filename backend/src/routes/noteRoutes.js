@@ -1,8 +1,7 @@
 // backend/src/routes/noteRoutes.js
 import express from 'express';
-import { uploadNote, getNotes, deleteNote, editNote } from '../controllers/noteController.js'; 
+import { uploadNote, getNotes, deleteNote, editNote, getNoteStatus } from '../controllers/noteController.js'; 
 import { multerUpload, uploadToCloudinary } from '../middleware/upload.js'; 
-import compressPdf from '../middleware/compressPdf.js';
 import adminAuth from '../middleware/adminAuth.js';
 
 import jwt from 'jsonwebtoken';
@@ -46,13 +45,14 @@ router
                 next();
             });
         },
-        // Step 2: Compress PDF if size > 10 MB
-        compressPdf,
-        // Step 3: Upload the file to Cloudinary Storage
+        // Step 2: Upload the file directly to Cloudinary (no blocking compression)
         uploadToCloudinary,
-        // Step 4: Save the note metadata to MongoDB
+        // Step 3: Save note to MongoDB — background compression fires after response
         uploadNote
     );
+
+// --- GET /api/notes/:id/status — Poll compression status ---
+router.get('/:id/status', getNoteStatus);
 
 // --- PUT /api/notes/:id — Edit note (Uploader via token or Admin via JWT) ---
 // --- DELETE /api/notes/:id — Delete a note (Uploader via token or Admin via JWT) ---

@@ -41,18 +41,24 @@ const noteSchema = mongoose.Schema(
         department: {
             type: String,
             required: true,
-            enum: ['AIML', 'CSE', 'DS'],
+            enum: ['AIML', 'CSE', 'DS', 'AI'],
         },
         uploaderName: {
             type: String,
-            required: true,
-            default: 'Anonymous',
+            required: false,
+            default: '',
             maxlength: 50,
         },
         // Hashed token for uploader to edit/delete without login
         uploadToken: {
             type: String,
             default: '',
+        },
+        // Background compression status: 'none' | 'pending' | 'done' | 'failed'
+        compressionStatus: {
+            type: String,
+            enum: ['none', 'pending', 'done', 'failed'],
+            default: 'none',
         },
     },
     {

@@ -6,7 +6,7 @@ import { useAdmin } from "../../contexts/AdminContext";
 import AdminLoginModal from "../ui/AdminLoginModal";
 
 const DEPT_NAMES: Record<string, string> = {
-    aiml: 'AIML', cse: 'CSE', ds: 'DS',
+    aiml: 'AIML', ai: 'AI', cse: 'CSE', ds: 'DS',
 };
 
 const Navbar: React.FC = () => {
@@ -17,10 +17,10 @@ const Navbar: React.FC = () => {
 
   const deptKey = department?.toLowerCase() || '';
   const deptName = DEPT_NAMES[deptKey] || '';
-  const displayDept = deptKey === 'aiml' ? 'AIML & AI' : deptName;
+  const displayDept = deptName;
   const isHome = location.pathname === '/';
-  const titleText = isHome ? 'PEC Notes Hub' : displayDept ? `${displayDept} 2-2 Notes & Papers` : 'PEC Notes Hub';
-  const shortTitle = isHome ? 'PEC Notes Hub' : displayDept ? `${displayDept} 2-2 Notes` : 'PEC Notes Hub';
+  const titleText = isHome ? 'PEC Notes Hub' : displayDept ? `${displayDept} 3-1 Notes & Papers` : 'PEC Notes Hub';
+  const shortTitle = isHome ? 'PEC Notes Hub' : displayDept ? `${displayDept} 3-1 Notes` : 'PEC Notes Hub';
   // Even shorter title for mobile when admin is logged in (extra buttons cause overlap)
   const adminMobileTitle = isHome ? 'PEC Notes' : displayDept || 'PEC Notes';
 

@@ -110,7 +110,7 @@ const AdminAnalytics: React.FC = () => {
         const matchDept = filterDept === 'All' || n.department === filterDept;
         const matchType = filterType === 'All' || n.fileType === filterType;
         const q = searchTerm.toLowerCase();
-        const matchSearch = !q || n.title.toLowerCase().includes(q) || n.uploaderName.toLowerCase().includes(q) || n.subject.toLowerCase().includes(q);
+        const matchSearch = !q || n.title.toLowerCase().includes(q) || (n.uploaderName || '').toLowerCase().includes(q) || n.subject.toLowerCase().includes(q);
         return matchDept && matchType && matchSearch;
     });
 
@@ -188,6 +188,7 @@ const AdminAnalytics: React.FC = () => {
                 >
                     <option value="All">All Departments</option>
                     <option value="AIML">AIML</option>
+                    <option value="AI">AI</option>
                     <option value="CSE">CSE</option>
                     <option value="DS">DS</option>
                 </select>

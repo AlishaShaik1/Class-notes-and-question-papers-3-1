@@ -3,6 +3,7 @@
 import crypto from 'crypto';
 import Note from '../models/Note.js';
 import cloudinary from '../config/cloudinary.js';
+import { runBackgroundCompression, needsCompression } from '../middleware/compressPdf.js';
 
 // Generate a random token and its hash
 const generateToken = () => {
@@ -62,7 +63,7 @@ export const uploadNote = async (req, res) => {
 
     // Validate required fields
     const validDepartments = ['AIML', 'CSE', 'DS', 'AI'];
-    if (!title || !subject || isNaN(yearNum) || !fileType || !uploaderName || 
+    if (!title || !subject || isNaN(yearNum) || !fileType || 
         (isNotes && isNaN(chapterNum)) || !department || !validDepartments.includes(department)) { 
         console.log('Validation Failed: Missing required data.');
         console.log(`Debug: Chapter=${chapterNum}, Year=${yearNum}, Dept=${department}`);
@@ -73,6 +74,11 @@ export const uploadNote = async (req, res) => {
         // Generate upload token for the uploader
         const { token, hash } = generateToken();
 
+        // Determine if this PDF needs background compression (> 10 MB)
+        const isPdf = req.file.mimetype === 'application/pdf';
+        const tempFilePath = req.file.path || null; // disk path saved by multer
+        const needsBgCompression = isPdf && tempFilePath && needsCompression(tempFilePath);
+
         const note = new Note({
             title,
             subject: finalSubject,
@@ -82,8 +88,9 @@ export const uploadNote = async (req, res) => {
             fileType, 
             chapter: chapterNum,
             department,
-            uploaderName: uploaderName || 'Anonymous',
+            uploaderName: uploaderName ? uploaderName.trim() : '',
             uploadToken: hash, // Store only the hash
+            compressionStatus: needsBgCompression ? 'pending' : 'none',
         });
 
         const createdNote = await note.save();
@@ -94,9 +101,37 @@ export const uploadNote = async (req, res) => {
             uploadToken: token, // Send raw token back (NOT the hash)
         });
 
+        // Fire background compression AFTER responding — user is NOT blocked
+        if (needsBgCompression) {
+            const publicIdBase = req.file.cloudinaryPublicIdBase || req.file.cloudinaryPublicId;
+            console.log(`[BG Compress] Queuing background compression for note ${createdNote._id}...`);
+            // Run without await — intentionally fire-and-forget
+            runBackgroundCompression(createdNote._id.toString(), tempFilePath, publicIdBase)
+                .catch(err => console.error('[BG Compress] Unhandled error:', err));
+        }
+
     } catch (error) {
         console.error('Database save error:', error.message);
         res.status(500).json({ message: 'Failed to save note metadata.', error: error.message });
+    }
+};
+
+// -----------------------------------------------------------------------
+// @desc    Get compression status + latest fileUrl for a note
+// @route   GET /api/notes/:id/status
+// @access  Public
+export const getNoteStatus = async (req, res) => {
+    try {
+        const note = await Note.findById(req.params.id).select('compressionStatus fileUrl title');
+        if (!note) return res.status(404).json({ message: 'Note not found.' });
+        res.json({
+            _id: note._id,
+            title: note.title,
+            compressionStatus: note.compressionStatus,
+            fileUrl: note.fileUrl,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch note status.', error: error.message });
     }
 };
 

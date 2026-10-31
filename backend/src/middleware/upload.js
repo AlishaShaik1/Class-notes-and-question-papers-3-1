@@ -6,23 +6,42 @@ import cloudinary from '../config/cloudinary.js';
 import fs from 'fs';
 import os from 'os';
 
+// Allowed MIME types: PDF, Word, PowerPoint
+const ALLOWED_MIMES = [
+    'application/pdf',
+    'application/msword',                                                        // .doc
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',   // .docx
+    'application/vnd.ms-powerpoint',                                             // .ppt
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+];
+
+// Map MIME to extension
+const MIME_TO_EXT = {
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+};
+
 // 1. Use disk storage — reduces memory usage for large files
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, os.tmpdir());
     },
     filename: (req, file, cb) => {
+        const ext = MIME_TO_EXT[file.mimetype] || '.pdf';
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + '.pdf');
+        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
     }
 });
 
-// 2. File Filter (Only PDFs allowed)
-const pdfFilter = (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+// 2. File Filter — PDF, Word, PowerPoint
+const fileFilter = (req, file, cb) => {
+    if (ALLOWED_MIMES.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        req.fileValidationError = 'Only PDF files are allowed.';
+        req.fileValidationError = 'Only PDF, Word (.doc/.docx), and PowerPoint (.ppt/.pptx) files are allowed.';
         cb(null, false);
     }
 };
@@ -30,9 +49,9 @@ const pdfFilter = (req, file, cb) => {
 // 3. Configure Multer with disk storage
 const upload = multer({
     storage: storage,
-    fileFilter: pdfFilter,
+    fileFilter: fileFilter,
     limits: {
-        fileSize: 1024 * 1024 * 100 // 100 MB upload limit (iLovePDF will compress files > 10 MB before Cloudinary upload)
+        fileSize: 1024 * 1024 * 100 // 100 MB upload limit
     }
 });
 
@@ -48,22 +67,31 @@ export const uploadToCloudinary = async (req, res, next) => {
 
     try {
         const filePath = req.file.path;
-        console.log(`Uploading to Cloudinary: ${req.file.originalname}`);
+        const ext = MIME_TO_EXT[req.file.mimetype] || '.pdf';
 
-        const lastDotIdx = req.file.originalname.lastIndexOf('.');
-        const baseName = lastDotIdx === -1 ? req.file.originalname : req.file.originalname.slice(0, lastDotIdx);
+        // Use the user-given title as the Cloudinary filename (not the original laptop filename)
+        const userTitle = req.body.title
+            ? req.body.title.trim().replace(/[^a-zA-Z0-9_\-\s]/g, '').replace(/\s+/g, '_').slice(0, 80)
+            : 'note';
+        const publicId = `${userTitle}-${Date.now()}`;
 
-        // Upload as 'raw' resource type for PDFs (not image/video)
+        console.log(`Uploading to Cloudinary as: ${publicId}${ext}`);
+
+        // Upload as 'raw' resource type
         const result = await cloudinary.uploader.upload(filePath, {
             resource_type: 'raw',
             folder: 'pec-notes',
-            public_id: `${baseName.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}`,
+            public_id: publicId,
             overwrite: false,
+            // Append the correct extension so the file is downloadable with the right format
+            format: ext.replace('.', ''),
         });
 
-        // Attach the URL and public_id to the request for the controller
+        // Attach URL, public_id, file type, and the Cloudinary base public_id to the request
         req.file.cloudinaryUrl = result.secure_url;
         req.file.cloudinaryPublicId = result.public_id;
+        req.file.cloudinaryPublicIdBase = publicId; // without folder prefix — used for overwrite on compression
+        req.file.fileExt = ext;
 
         console.log('Cloudinary upload successful:', result.secure_url);
         next();
@@ -74,8 +102,16 @@ export const uploadToCloudinary = async (req, res, next) => {
             message: 'Upload failed: Server error during file processing.',
         });
     } finally {
-        // Clean up temp file
-        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        // Clean up temp file ONLY if compression is not needed (small files).
+        // For large PDFs (> 10 MB), the background compression worker will clean up.
+        const CLOUDINARY_MAX = 10 * 1024 * 1024;
+        const shouldKeepForCompression =
+            req.file &&
+            req.file.path &&
+            req.file.mimetype === 'application/pdf' &&
+            req.file.size > CLOUDINARY_MAX;
+
+        if (!shouldKeepForCompression && req.file && req.file.path && fs.existsSync(req.file.path)) {
             try {
                 fs.unlinkSync(req.file.path);
             } catch (cleanupErr) {

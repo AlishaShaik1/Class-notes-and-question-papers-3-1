@@ -9,6 +9,7 @@ import NotificationModal from "../components/ui/NotificationModal";
 // Department display names
 const DEPT_NAMES: Record<string, string> = {
     aiml: 'AIML',
+    ai: 'AI',
     cse: 'CSE',
     ds: 'DS',
 };
@@ -32,7 +33,7 @@ const Upload: React.FC = () => {
       <br/><br/>
       **Please do not upload any random or non-related PDFs here.** Ensure that your **exam papers** and **question papers** are uploaded only in the respective categories (selected in the form below). If unrelated content is uploaded, it will be visible to all students.
       <br/><br/>
-      Thank you for contributing responsibly to the **{deptName} 2-2 Semester Notes & Papers Hub**.
+      Thank you for contributing responsibly to the **{deptName} 3-1 Semester Notes & Papers Hub**.
     </p>
   );
 

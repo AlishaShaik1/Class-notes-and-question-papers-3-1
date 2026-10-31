@@ -1,7 +1,7 @@
 // frontend/src/components/notes/NoteCard.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, Trash2, Pencil, Check, X } from "lucide-react";
+import { Eye, Trash2, Pencil, Check, X, Loader2 } from "lucide-react";
 import { useAdmin } from "../../contexts/AdminContext";
 import axios from "axios";
 
@@ -18,6 +18,7 @@ interface Note {
   createdAt: string;
   chapter?: number;
   department?: string;
+  compressionStatus?: 'none' | 'pending' | 'done' | 'failed';
 }
 
 interface NoteCardProps {
@@ -36,6 +37,9 @@ const getUploadToken = (noteId: string): string | null => {
   }
 };
 
+// Helper: detect if a URL points to a Word or PowerPoint file
+const isOfficeFile = (url: string) => /\.(docx?|pptx?)(\?|$)/i.test(url);
+
 const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete, onEdit }) => {
   const { isAdmin } = useAdmin();
   const uploadToken = getUploadToken(note._id);
@@ -44,6 +48,34 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete, onEdit }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(note.title);
   const [saving, setSaving] = useState(false);
+
+  // Track background compression status (starts from what DB returned)
+  const [compressionStatus, setCompressionStatus] = useState<Note['compressionStatus']>(
+    note.compressionStatus ?? 'none'
+  );
+  const [currentFileUrl, setCurrentFileUrl] = useState(note.fileUrl);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for compression completion if status is 'pending'
+  useEffect(() => {
+    if (compressionStatus !== 'pending') return;
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/notes/${note._id}/status`);
+        const { compressionStatus: newStatus, fileUrl: newUrl } = res.data;
+        if (newStatus !== 'pending') {
+          setCompressionStatus(newStatus);
+          if (newUrl) setCurrentFileUrl(newUrl);
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }, 5000); // poll every 5 seconds
+
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [compressionStatus, note._id]);
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("en-US", {
@@ -218,16 +250,52 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete, onEdit }) => {
                 Your Upload
               </span>
             )}
+            {/* Compression status badge */}
+            {compressionStatus === 'pending' && (
+              <span className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 shadow-sm">
+                <Loader2 className="w-3 h-3 animate-spin" /> Optimizing…
+              </span>
+            )}
+            {compressionStatus === 'failed' && (
+              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-600 shadow-sm">
+                Compression failed
+              </span>
+            )}
           </div>
           <div className="text-gray-700 text-sm border-t border-gray-300/40 pt-3 space-y-1">
-            <p><span className="font-semibold text-gray-900">Uploaded By:</span> {note.uploaderName}</p>
+            <p><span className="font-semibold text-gray-900">Uploaded By:</span> {note.uploaderName && note.uploaderName !== 'Anonymous' ? note.uploaderName : ''}</p>
             <p><span className="font-semibold text-gray-900">Uploaded On:</span> {formatDate(note.createdAt)}</p>
           </div>
         </div>
         <div className="flex justify-center mt-4">
-          <motion.a href={note.fileUrl?.replace('http://', 'https://')} target="_blank" rel="noopener noreferrer" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-blue-500 text-white font-bold rounded-xl shadow-md hover:from-indigo-600 hover:to-blue-600 transition-all duration-300">
-            <Eye className="w-5 h-5" /> View PDF
-          </motion.a>
+          {(() => {
+            const rawUrl = currentFileUrl?.replace('http://', 'https://') || '';
+            const viewUrl = isOfficeFile(rawUrl)
+              ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(rawUrl)}`
+              : rawUrl;
+            const viewLabel = isOfficeFile(rawUrl) ? 'View Document' : 'View PDF';
+            const isPending = compressionStatus === 'pending';
+            return (
+              <motion.a
+                href={isPending ? undefined : viewUrl}
+                onClick={isPending ? (e) => { e.preventDefault(); } : undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: isPending ? 1 : 1.05 }}
+                whileTap={{ scale: isPending ? 1 : 0.95 }}
+                className={`w-full flex items-center justify-center gap-2 py-3 font-bold rounded-xl shadow-md transition-all duration-300 ${
+                  isPending
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white hover:from-indigo-600 hover:to-blue-600'
+                }`}
+              >
+                {isPending
+                  ? <><Loader2 className="w-5 h-5 animate-spin" /> Optimizing file…</>
+                  : <><Eye className="w-5 h-5" /> {viewLabel}</>
+                }
+              </motion.a>
+            );
+          })()}
         </div>
       </div>
     </motion.div>

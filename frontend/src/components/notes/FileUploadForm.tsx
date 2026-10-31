@@ -6,10 +6,25 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API_URL = `${API_BASE_URL}/api/notes`;
 
+/**
+ * Extract the trailing number from a filename for natural numeric sort.
+ * e.g. 'IRS ASSIGNMENT -3.pdf' -> 3, 'Chapter 10.pdf' -> 10
+ */
+const extractFileNumber = (filename: string): number => {
+    const matches = filename.match(/\d+/g);
+    if (!matches) return Infinity;
+    return parseInt(matches[matches.length - 1], 10);
+};
+
+const sortFilesNumerically = (fileList: File[]): File[] =>
+    [...fileList].sort((a, b) => extractFileNumber(a.name) - extractFileNumber(b.name));
+
+
+
 interface FileUploadFormProps {
     department: string; // e.g., 'AIML', 'CSE', 'DS', 'AI'
     defaultFileType?: string; // Pre-filled from Library (Notes, Assignments, Papers)
-    defaultSubject?: string;  // Pre-filled from Library (e.g., ML, DBMS)
+    defaultSubject?: string;  // Pre-filled from Library (e.g., IRS, CN, OS)
 }
 
 const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFileType = '', defaultSubject = '' }) => {
@@ -26,9 +41,10 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
 
     // Department-specific subjects
     const SUBJECTS_MAP: Record<string, string[]> = {
-        AIML: ['M4', 'DLCO', 'ML', 'DBMS', 'OT'],
-        CSE:  ['M4', 'MEFA', 'OS', 'DBMS', 'SE'],
-        DS:   ['SMDS', 'COA', 'DE', 'DBMS', 'OT'],
+        AIML: ['IRS', 'CN', 'OS'],
+        AI:   ['DL', 'CN', 'OS'],
+        CSE:  ['DWDM', 'CN', 'FLA'],
+        DS:   ['ML', 'CN', 'SE'],
     };
     const SUBJECTS = SUBJECTS_MAP[department] || SUBJECTS_MAP['AIML'];
     const CHAPTERS = [1, 2, 3, 4, 5];
@@ -62,15 +78,22 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
             setMessage({ text: 'Please provide a title.', type: 'error' });
             return;
         }
-        if (!courseYear || !uploaderName || !fileType) {
+        if (!courseYear || !fileType) {
             setMessage({ text: 'Please fill out all required fields.', type: 'error' });
             return;
         }
 
         // Validate all files
+        const ALLOWED_TYPES = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ];
         for (const file of files) {
-            if (file.type !== 'application/pdf') {
-                setMessage({ text: `Only PDF files are allowed. (${file.name} is invalid)`, type: 'error' });
+            if (!ALLOWED_TYPES.includes(file.type)) {
+                setMessage({ text: `Only PDF, Word (.doc/.docx), or PowerPoint (.ppt/.pptx) files are allowed. (${file.name} is invalid)`, type: 'error' });
                 return;
             }
             if (file.size > 100 * 1024 * 1024) {
@@ -83,10 +106,13 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
         let successCount = 0;
         let failCount = 0;
 
+        // Upload in reverse so lowest-numbered file is newest (backend sorts createdAt DESC)
+        const uploadOrder = files.length > 1 ? [...files].reverse() : [...files];
+
         try {
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                setProgressText(`Uploading ${i + 1} of ${files.length}: ${file.name}...`);
+            for (let i = 0; i < uploadOrder.length; i++) {
+                const file = uploadOrder[i];
+                setProgressText(`Uploading ${i + 1} of ${uploadOrder.length}: ${file.name}...`);
                 
                 const formData = new FormData();
                 formData.append('pdfFile', file);
@@ -98,7 +124,7 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
 
                 if (isMultiUpload) {
                     // Extract title and chapter from filename
-                    const baseName = file.name.replace(/\.pdf$/i, '');
+                    const baseName = file.name.replace(/\.(pdf|docx?|pptx?)$/i, '');
                     const semanticMatch = baseName.match(/(?:chapter|ch|module|mod)[-_ ]?(\d+)/i);
                     const lastNumberMatch = baseName.match(/(\d+)(?!.*\d)/);
                     const parsedChapter = semanticMatch ? semanticMatch[1] : (lastNumberMatch ? lastNumberMatch[1] : '0');
@@ -191,7 +217,7 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
         >
             <motion.h3 variants={fieldVariant} custom={0} className="text-2xl sm:text-3xl font-extrabold text-center text-pec-blue flex flex-col sm:flex-row items-center justify-center gap-2">
                 <span className="text-3xl sm:text-4xl">📤</span>
-                <span>SHARE YOUR NOTES <br className="sm:hidden" />({department === 'AIML' ? 'AIML & AI' : department})</span>
+                <span>SHARE YOUR NOTES <br className="sm:hidden" />({department})</span>
             </motion.h3>
 
             {message.text && (
@@ -230,11 +256,11 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
 
             {/* File Input */}
             <motion.div variants={fieldVariant} custom={2}>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select PDF File(s) (Max 5 files, 100MB each) </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select File(s) — PDF, Word, or PowerPoint (Max 5 files, 100MB each) </label>
                 <motion.input
                     id="file-input"
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx"
                     multiple
                     onChange={(e) => {
                         const selectedFiles = Array.from(e.target.files || []);
@@ -244,7 +270,7 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
                             setFiles([]);
                         } else {
                             setMessage({ text: '', type: '' });
-                            setFiles(selectedFiles);
+                            setFiles(sortFilesNumerically(selectedFiles));
                         }
                     }}
                     whileHover={{ scale: 1.02 }}
@@ -342,11 +368,10 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
                 variants={fieldVariant}
                 custom={7}
                 type="text"
-                placeholder="Your Name (Uploader)"
+                placeholder="Your Name (Optional)"
                 value={uploaderName}
                 onChange={(e) => setUploaderName(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-pec-blue focus:border-pec-blue transition"
-                required
             />
 
             {/* Submit */}
@@ -358,7 +383,7 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
                 whileHover={{ scale: loading ? 1 : 1.03 }}
                 whileTap={{ scale: loading ? 1 : 0.97 }}
                 className={`w-full py-3 px-4 rounded-lg text-white font-bold transition duration-300 ${
-                    loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-pec-green hover:bg-pec-blue'
+                    loading ? 'bg-gray-600 cursor-not-allowed' : 'bg-pec-green hover:bg-pec-blue'
                 }`}
             >
                 {loading ? (
@@ -376,8 +401,8 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
                             />
                             <span>{progressText || 'Processing & Uploading...'}</span>
                         </div>
-                        <span className="text-xs text-white/80 font-normal text-center px-2">
-                            Auto-compressing large files via iLovePDF. Please wait, this may take a moment.
+                        <span className="text-xs text-white font-semibold text-center px-2 drop-shadow">
+                            Uploading... Large files are compressed in the background — you can upload more right after!
                         </span>
                     </motion.div>
                 ) : (

@@ -11,7 +11,8 @@ interface DepartmentInfo {
 }
 
 const DEPARTMENTS: DepartmentInfo[] = [
-    { key: 'aiml', name: 'AIML & AI', fullName: 'Artificial Intelligence & Machine Learning', icon: '🤖' },
+    { key: 'aiml', name: 'AIML', fullName: 'Artificial Intelligence & Machine Learning', icon: '🤖' },
+    { key: 'ai', name: 'AI', fullName: 'Artificial Intelligence', icon: '🧠' },
     { key: 'cse', name: 'CSE', fullName: 'Computer Science & Engineering', icon: '💻' },
     { key: 'ds', name: 'DS', fullName: 'Data Science', icon: '📊' },
 ];
@@ -61,7 +62,7 @@ const Home: React.FC = () => {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 px-2 sm:px-0"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 px-2 sm:px-0"
             >
                 {DEPARTMENTS.map((dept) => (
                     <motion.button
@@ -80,7 +81,7 @@ const Home: React.FC = () => {
                             {dept.fullName}
                         </span>
                         <span className="mt-3 px-4 py-1.5 text-xs sm:text-sm font-bold bg-pec-blue text-white rounded-full shadow-sm">
-                            2-2 Semester →
+                            3-1 Semester →
                         </span>
                     </motion.button>
                 ))}

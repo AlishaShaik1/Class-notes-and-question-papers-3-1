@@ -10,7 +10,9 @@
 .env.production.local
 **/.env
 **/.env.*
-# .env.example IS committed on purpose (safe — no real values)
+# .env.example IS safe to commit (contains only placeholder values)
+!.env.example
+!**/.env.example
 
 # ── Node dependencies ────────────────────────────────────────
 node_modules/

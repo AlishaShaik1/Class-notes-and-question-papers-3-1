@@ -70,9 +70,9 @@ const Library: React.FC = () => {
     // Department-specific subjects
     const SUBJECTS_MAP: Record<string, string[]> = {
         AIML: ['IRS', 'CN', 'OS'],
-        AI:   ['DL', 'CN', 'OS'],
-        CSE:  ['DWDM', 'CN', 'FLA'],
-        DS:   ['ML', 'CN', 'SE'],
+        AI: ['DL', 'CN', 'OS'],
+        CSE: ['DWDM', 'CN', 'FLA'],
+        DS: ['ML', 'CN', 'SE'],
     };
     const SUBJECTS = SUBJECTS_MAP[deptName] || SUBJECTS_MAP['AIML'];
 
@@ -225,10 +225,10 @@ const Library: React.FC = () => {
                     {selectedSubject
                         ? `${selectedSubject} ${filterType}`
                         : filterType === 'Notes'
-                        ? '📚 CLASS NOTES'
-                        : filterType === 'Assignments'
-                        ? '💼 ASSIGNMENTS'
-                        : '📝 EXAM PAPERS'}
+                            ? '📚 CLASS NOTES'
+                            : filterType === 'Assignments'
+                                ? '💼 ASSIGNMENTS'
+                                : '📝 EXAM PAPERS'}
                 </h1>
 
                 {/* Section toggle buttons */}
@@ -239,11 +239,10 @@ const Library: React.FC = () => {
                             setSelectedSubject(null);
                             setSearchTerm('');
                         }}
-                        className={`px-4 py-2 text-sm sm:text-lg font-bold rounded-full transition-all duration-300 shadow-xl ${
-                            filterType === 'Notes'
+                        className={`px-4 py-2 text-sm sm:text-lg font-bold rounded-full transition-all duration-300 shadow-xl ${filterType === 'Notes'
                                 ? 'bg-pec-green text-white scale-105'
                                 : 'bg-gray-200 text-gray-700 hover:bg-pec-green/50'
-                        }`}
+                            }`}
                         whileHover={{ scale: 1.05 }}
                     >
                         Class Notes
@@ -255,11 +254,10 @@ const Library: React.FC = () => {
                             setSelectedSubject(null);
                             setSearchTerm('');
                         }}
-                        className={`px-4 py-2 text-sm sm:text-lg font-bold rounded-full transition-all duration-300 shadow-xl ${
-                            filterType === 'Assignments'
+                        className={`px-4 py-2 text-sm sm:text-lg font-bold rounded-full transition-all duration-300 shadow-xl ${filterType === 'Assignments'
                                 ? 'bg-indigo-500 text-white scale-105'
                                 : 'bg-gray-200 text-gray-700 hover:bg-indigo-500/50'
-                        }`}
+                            }`}
                         whileHover={{ scale: 1.05 }}
                     >
                         Assignments
@@ -271,11 +269,10 @@ const Library: React.FC = () => {
                             setSelectedSubject(null);
                             setSearchTerm('');
                         }}
-                        className={`px-4 py-2 text-sm sm:text-lg font-bold rounded-full transition-all duration-300 shadow-xl ${
-                            filterType === 'Papers'
+                        className={`px-4 py-2 text-sm sm:text-lg font-bold rounded-full transition-all duration-300 shadow-xl ${filterType === 'Papers'
                                 ? 'bg-pec-blue text-white scale-105'
                                 : 'bg-gray-200 text-gray-700 hover:bg-pec-blue/50'
-                        }`}
+                            }`}
                         whileHover={{ scale: 1.05 }}
                     >
                         Exam Papers

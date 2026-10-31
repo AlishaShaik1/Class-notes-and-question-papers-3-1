@@ -117,7 +117,7 @@ const FileUploadForm: React.FC<FileUploadFormProps> = ({ department, defaultFile
                 const formData = new FormData();
                 formData.append('pdfFile', file);
                 formData.append('courseYear', courseYear);
-                formData.append('uploaderName', uploaderName);
+                formData.append('uploaderName', uploaderName.trim());
                 formData.append('fileType', fileType);
                 formData.append('department', department);
                 formData.append('subject', requiresSubject ? subject : 'N/A');

@@ -86,10 +86,10 @@ export async function runBackgroundCompression(noteId, tempFilePath, publicIdBas
         try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (_) {}
     }
 
-    // If compression didn't help, mark done (original is already stored)
-    if (compressedSize >= originalSize) {
-        console.log(`[BG Compress] Compression didn't reduce size — keeping original.`);
-        await Note.findByIdAndUpdate(noteId, { compressionStatus: 'done' });
+    // If still over 10 MB after compression, Cloudinary will reject it
+    if (compressedSize > CLOUDINARY_MAX) {
+        console.warn(`[BG Compress] ⚠️ File is still ${(compressedSize / (1024 * 1024)).toFixed(2)} MB after compression — exceeds Cloudinary 10 MB limit.`);
+        await Note.findByIdAndUpdate(noteId, { compressionStatus: 'failed' });
         return;
     }
 
@@ -98,7 +98,7 @@ export async function runBackgroundCompression(noteId, tempFilePath, publicIdBas
     try {
         fs.writeFileSync(compressedPath, compressedBuffer);
 
-        // Re-upload compressed file to Cloudinary (replace with same public_id)
+        // Upload compressed file to Cloudinary
         const result = await cloudinary.uploader.upload(compressedPath, {
             resource_type: 'raw',
             folder: 'pec-notes',
@@ -110,9 +110,10 @@ export async function runBackgroundCompression(noteId, tempFilePath, publicIdBas
         const reductionPercent = ((1 - compressedSize / originalSize) * 100).toFixed(1);
         console.log(`[BG Compress] ✓ Done for note ${noteId}: ${originalSizeMB} MB → ${(compressedSize / (1024 * 1024)).toFixed(2)} MB (${reductionPercent}% smaller). URL: ${result.secure_url}`);
 
-        // Update note in DB with new compressed URL
+        // Update note in DB with new compressed URL and publicId
         await Note.findByIdAndUpdate(noteId, {
             fileUrl: result.secure_url,
+            filePath: result.public_id,
             compressionStatus: 'done',
         });
 

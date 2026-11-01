@@ -75,6 +75,22 @@ export const uploadToCloudinary = async (req, res, next) => {
             : 'note';
         const publicId = `${userTitle}-${Date.now()}`;
 
+        // Cloudinary free plan has a 10 MB limit for raw uploads.
+        // For PDFs > 10 MB, skip uploading to Cloudinary now.
+        // It will be compressed first with iLovePDF and uploaded in the background.
+        const CLOUDINARY_MAX = 10 * 1024 * 1024;
+        const fileSize = req.file.size || (fs.existsSync(filePath) ? fs.statSync(filePath).size : 0);
+
+        if (ext === '.pdf' && fileSize > CLOUDINARY_MAX) {
+            console.log(`[Upload] Large PDF detected (${(fileSize / (1024 * 1024)).toFixed(2)} MB > 10 MB). Skipping direct Cloudinary upload — deferring to background compression & upload.`);
+            req.file.cloudinaryUrl = null;
+            req.file.cloudinaryPublicId = null;
+            req.file.cloudinaryPublicIdBase = publicId;
+            req.file.fileExt = ext;
+            req.file.needsBackgroundUpload = true;
+            return next();
+        }
+
         console.log(`Uploading to Cloudinary as: ${publicId}${ext}`);
 
         // Upload as 'raw' resource type
@@ -102,16 +118,8 @@ export const uploadToCloudinary = async (req, res, next) => {
             message: 'Upload failed: Server error during file processing.',
         });
     } finally {
-        // Clean up temp file ONLY if compression is not needed (small files).
-        // For large PDFs (> 10 MB), the background compression worker will clean up.
-        const CLOUDINARY_MAX = 10 * 1024 * 1024;
-        const shouldKeepForCompression =
-            req.file &&
-            req.file.path &&
-            req.file.mimetype === 'application/pdf' &&
-            req.file.size > CLOUDINARY_MAX;
-
-        if (!shouldKeepForCompression && req.file && req.file.path && fs.existsSync(req.file.path)) {
+        // Clean up temp file ONLY if not needed for background compression
+        if (!req.file?.needsBackgroundUpload && req.file?.path && fs.existsSync(req.file.path)) {
             try {
                 fs.unlinkSync(req.file.path);
             } catch (cleanupErr) {

@@ -270,29 +270,34 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete, onEdit }) => {
         <div className="flex justify-center mt-4">
           {(() => {
             const rawUrl = currentFileUrl?.replace('http://', 'https://') || '';
+            const isPending = compressionStatus === 'pending' || currentFileUrl === 'pending';
+            const isFailed = compressionStatus === 'failed';
+            const isDisabled = isPending || isFailed;
             const viewUrl = isOfficeFile(rawUrl)
               ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(rawUrl)}`
               : rawUrl;
             const viewLabel = isOfficeFile(rawUrl) ? 'View Document' : 'View PDF';
-            const isPending = compressionStatus === 'pending';
             return (
               <motion.a
-                href={isPending ? undefined : viewUrl}
-                onClick={isPending ? (e) => { e.preventDefault(); } : undefined}
+                href={isDisabled ? undefined : viewUrl}
+                onClick={isDisabled ? (e) => { e.preventDefault(); } : undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                whileHover={{ scale: isPending ? 1 : 1.05 }}
-                whileTap={{ scale: isPending ? 1 : 0.95 }}
+                whileHover={{ scale: isDisabled ? 1 : 1.05 }}
+                whileTap={{ scale: isDisabled ? 1 : 0.95 }}
                 className={`w-full flex items-center justify-center gap-2 py-3 font-bold rounded-xl shadow-md transition-all duration-300 ${
-                  isPending
+                  isDisabled
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white hover:from-indigo-600 hover:to-blue-600'
                 }`}
               >
-                {isPending
-                  ? <><Loader2 className="w-5 h-5 animate-spin" /> Optimizing file…</>
-                  : <><Eye className="w-5 h-5" /> {viewLabel}</>
-                }
+                {isPending ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Optimizing file…</>
+                ) : isFailed ? (
+                  <>File Unavailable</>
+                ) : (
+                  <><Eye className="w-5 h-5" /> {viewLabel}</>
+                )}
               </motion.a>
             );
           })()}

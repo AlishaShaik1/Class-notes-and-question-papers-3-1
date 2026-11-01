@@ -53,13 +53,15 @@ export const uploadNote = async (req, res) => {
     const yearNum = parseInt(courseYear, 10);
     const finalSubject = subject || 'N/A';
 
-    // Get the Cloudinary URL from the upload middleware
-    const fileUrl = req.file.cloudinaryUrl;
-    if (!fileUrl) {
+    // Get the Cloudinary URL from the upload middleware (or check if deferred to bg upload)
+    const fileUrl = req.file?.cloudinaryUrl;
+    const needsBgUpload = !!(req.file?.needsBackgroundUpload);
+
+    if (!fileUrl && !needsBgUpload) {
         console.log('File upload failed or missing cloudinaryUrl. req.file:', req.file);
         return res.status(400).json({ message: 'File upload failed or missing cloudinaryUrl' });
     }
-    const filePath = req.file.cloudinaryPublicId || '';
+    const filePath = req.file?.cloudinaryPublicId || '';
 
     // Validate required fields
     const validDepartments = ['AIML', 'CSE', 'DS', 'AI'];
@@ -74,23 +76,20 @@ export const uploadNote = async (req, res) => {
         // Generate upload token for the uploader
         const { token, hash } = generateToken();
 
-        // Determine if this PDF needs background compression (> 10 MB)
-        const isPdf = req.file.mimetype === 'application/pdf';
-        const tempFilePath = req.file.path || null; // disk path saved by multer
-        const needsBgCompression = isPdf && tempFilePath && needsCompression(tempFilePath);
+        const tempFilePath = req.file?.path || null; // disk path saved by multer
 
         const note = new Note({
             title,
             subject: finalSubject,
             courseYear: yearNum, 
-            fileUrl, 
+            fileUrl: fileUrl || 'pending', 
             filePath,
             fileType, 
             chapter: chapterNum,
             department,
             uploaderName: uploaderName ? uploaderName.trim() : '',
             uploadToken: hash, // Store only the hash
-            compressionStatus: needsBgCompression ? 'pending' : 'none',
+            compressionStatus: needsBgUpload ? 'pending' : 'none',
         });
 
         const createdNote = await note.save();
@@ -101,10 +100,10 @@ export const uploadNote = async (req, res) => {
             uploadToken: token, // Send raw token back (NOT the hash)
         });
 
-        // Fire background compression AFTER responding — user is NOT blocked
-        if (needsBgCompression) {
-            const publicIdBase = req.file.cloudinaryPublicIdBase || req.file.cloudinaryPublicId;
-            console.log(`[BG Compress] Queuing background compression for note ${createdNote._id}...`);
+        // Fire background compression + upload AFTER responding — user is NOT blocked
+        if (needsBgUpload && tempFilePath) {
+            const publicIdBase = req.file.cloudinaryPublicIdBase;
+            console.log(`[BG Compress] Queuing background compression + upload for note ${createdNote._id}...`);
             // Run without await — intentionally fire-and-forget
             runBackgroundCompression(createdNote._id.toString(), tempFilePath, publicIdBase)
                 .catch(err => console.error('[BG Compress] Unhandled error:', err));

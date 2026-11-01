@@ -15,21 +15,30 @@ const ROMAN_MAP: Record<string, number> = {
 
 /**
  * Extract the primary sequence number from a note title.
- * 1. Last Arabic digit group  → "IRS ASSIGNMENT -3" = 3
- * 2. Last Roman numeral word  → "OS Unit-IV" = 4, "OS Unit-V" = 5
- * 3. Fallback = Infinity (sorted last)
+ * Strategy (in priority order):
+ * 1. Number right after a keyword (unit/chapter/assignment/part/set/paper/exam)
+ *    — "OS-Unit4-set 2" → 4,  "IRS ASSIGNMENT -3" → 3
+ * 2. First Arabic digit group in title — "CN 3" → 3
+ * 3. First Roman numeral word — "OS Unit-IV" → 4, "OS Unit-V" → 5
+ * 4. Fallback = Infinity (sorted last)
  */
 const extractTitleNumber = (title: string): number => {
+    // 1. Number right after a keyword
+    const keywordMatch = title.match(/(?:unit|chapter|assignment|part|paper|exam|set)\s*[-#.]?\s*(\d+)/i);
+    if (keywordMatch) {
+        return parseInt(keywordMatch[1], 10);
+    }
+    // 2. First Arabic digit group
     const arabicMatches = title.match(/\d+/g);
     if (arabicMatches && arabicMatches.length > 0) {
-        return parseInt(arabicMatches[arabicMatches.length - 1], 10);
+        return parseInt(arabicMatches[0], 10);
     }
+    // 3. First Roman numeral word
     const words = title.toUpperCase().replace(/[-_]/g, ' ').split(/\s+/);
-    let lastRoman = Infinity;
     for (const word of words) {
-        if (ROMAN_MAP[word] !== undefined) lastRoman = ROMAN_MAP[word];
+        if (ROMAN_MAP[word] !== undefined) return ROMAN_MAP[word];
     }
-    return lastRoman;
+    return Infinity;
 };
 
 
